@@ -6,13 +6,14 @@
    license:     public domain
                 ( c ) 2002 finnendahl, kersten
    +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-   $Id: csound~.c,v 1.4 2002/01/30 02:13:10 steve Exp steve $
+   $Id: csound~.c,v 1.1 2002/02/18 22:58:31 steve Exp steve $
    +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
 #include "m_pd.h"
 
 #include <errno.h>
 #include <fcntl.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <signal.h>
@@ -60,6 +61,8 @@ static t_class *csound_tilde_class;
 typedef struct
 {
     t_object    x_obj;                                          /* super */
+    
+    t_canvas    *x_canvas;                                      /* canvas */
     t_sample    x_f;                                            /* default signal inlet slot */
 
     char        x_evt_out_filename[CSD_MAX_FIFO_NAME_LEN];      /* line event fifo */
@@ -130,11 +133,7 @@ csound_tilde_send_event(t_csound_tilde *x, const char *method, t_symbol *s, int 
     char        *buf_pointer = buf;
     int         err;
 
-    if (x->x_pid < 0) {
-        return;
-    }
-
-    if (x->x_paused) {
+    if (!CSD_DO_PERF(x)) {
         return;
     }
 
@@ -207,18 +206,65 @@ csound_tilde_free_buffers(t_csound_tilde *x)
 
 static void csound_tilde_close(t_csound_tilde *);
 
+typedef struct
+{
+    char        *x_argv[CSD_MAX_ARGC+1];
+    int         x_argc;
+    char        x_buf[CSD_MAX_CMD_LINE_LEN];
+    char        *x_bufp;
+} t_csound_tilde_argv;
+
+__inline__ static void
+csound_tilde_argv_start(t_csound_tilde_argv *argv)
+{
+    argv->x_argc = 0;
+    argv->x_bufp = argv->x_buf;
+}
+
+__inline__ static int
+csound_tilde_argv_write(t_csound_tilde_argv *argv, const char *fmt, ...)
+{
+    int         len;
+    va_list     ap;
+
+    va_start(ap, fmt);    
+    len = vsnprintf(argv->x_bufp, argv->x_buf + CSD_MAX_CMD_LINE_LEN - argv->x_bufp, fmt, ap);
+    va_end(ap);
+
+    if ((len < 0) || (argv->x_argc >= CSD_MAX_ARGC)) {
+        return -1;
+    }
+
+    argv->x_argv[argv->x_argc++] = argv->x_bufp; argv->x_bufp += len+1;
+
+    return 0;
+}
+
+__inline__ static int
+csound_tilde_argv_write_filename(t_csound_tilde_argv *argv, t_canvas *canvas, char *filename)
+{
+    canvas_makefilename(canvas, filename, argv->x_bufp, 
+                        argv->x_buf + CSD_MAX_CMD_LINE_LEN - argv->x_bufp);
+    argv->x_argv[argv->x_argc++] = argv->x_bufp; argv->x_bufp += strlen(argv->x_bufp)+1;
+    return 0;
+}
+
+__inline__ static char **
+csound_tilde_argv_end(t_csound_tilde_argv *argv)
+{
+    argv->x_argv[argv->x_argc] = NULL;
+    return argv->x_argv;
+}
+
 static void
 csound_tilde_csound(t_csound_tilde *x, t_symbol *s, int ac, t_atom *av)
 {
-    char        *bin_filename;
-    int         len;
-    int         buf_len = CSD_MAX_CMD_LINE_LEN;
-    char        buf[buf_len];
-    char        *buf_pointer = buf;
-    char        *argv[CSD_MAX_ARGC+1];
-    int         argc = 0;
-    int         pid;
-    
+    char                *bin_filename;
+    int                 pid;
+    t_csound_tilde_argv argv;
+    int                 err;
+    char                **exec_argv;
+
     if (x->x_csound_orc_filename == NULL) {
         error("csound~ (csound): missing orchestra filename");
         return;
@@ -250,6 +296,8 @@ csound_tilde_csound(t_csound_tilde *x, t_symbol *s, int ac, t_atom *av)
         return;
     }
 
+    csound_tilde_argv_start(&argv);
+
     /* write executable filename */
     if (x->x_csound_bin_filename == NULL) {
         bin_filename = CSD_BIN_FILENAME;
@@ -257,96 +305,68 @@ csound_tilde_csound(t_csound_tilde *x, t_symbol *s, int ac, t_atom *av)
         bin_filename = x->x_csound_bin_filename->s_name;
     }
 
-    len = snprintf(buf_pointer, buf_len, "%s ", bin_filename) ;
-
-    if ((len < 0) || (argc >= CSD_MAX_ARGC)) {
+    if (csound_tilde_argv_write_filename(&argv, x->x_canvas, bin_filename) < 0) {
         goto buffer_overflow_error;
     }
-    argv[argc++] = buf_pointer; buf_pointer += len+1;
 
     /* write user args */
     while (ac--) {
         switch(av->a_type) {
         case A_FLOAT:
-            len = snprintf(buf_pointer, buf + buf_len - buf_pointer, 
-                           "%d", (int)atom_getfloat(av));
-            break;
+            err = csound_tilde_argv_write(&argv, "%d", (int)atom_getfloat(av));
+            av++; break;
         case A_SYMBOL:
-            len = snprintf(buf_pointer, buf + buf_len - buf_pointer,
-                           "%s", atom_getsymbol(av)->s_name);
-            break;
+            err = csound_tilde_argv_write(&argv, "%s", atom_getsymbol(av)->s_name);
+            av++; break;
         default:
             post("csound~ (csound): unknown argument type (ignored)");
-            len = 0;
+            av++; continue;
         }
 
-        if ((len < 0) || (argc >= CSD_MAX_ARGC)) {
+        if (err < 0) {
             goto buffer_overflow_error;
         }
-
-        if (len > 0) {
-            argv[argc++] = buf_pointer; buf_pointer += len+1;
-        }
-
-        av++;
     }
 
     /* write internal args */
-    len = snprintf(buf_pointer, buf + buf_len - buf_pointer, "-fh");
-    if ((len < 0) || (argc >= CSD_MAX_ARGC)) {
+
+    /* float format, no header */
+    if (csound_tilde_argv_write(&argv, "-fh") < 0) {
         goto buffer_overflow_error;
     }
-    argv[argc++] = buf_pointer; buf_pointer += len+1;
 
-    len = snprintf(buf_pointer, buf + buf_len - buf_pointer, "-b%d", sys_getblksize());
-    if ((len < 0) || (argc >= CSD_MAX_ARGC)) {
+    /* block size; here we should really use the correct dsp block size of
+       the (sub-)patch we're in. */
+    if (csound_tilde_argv_write(&argv, "-b%d", sys_getblksize()) < 0) {
         goto buffer_overflow_error;
     }
-    argv[argc++] = buf_pointer; buf_pointer += len+1;
 
-    len = snprintf(buf_pointer, buf + buf_len - buf_pointer, "-B%d", sys_getblksize());
-    if ((len < 0) || (argc >= CSD_MAX_ARGC)) {
+    if (csound_tilde_argv_write(&argv, "-B%d", sys_getblksize()) < 0) {
         goto buffer_overflow_error;
     }
-    argv[argc++] = buf_pointer; buf_pointer += len+1;
 
-    len = snprintf(buf_pointer, buf + buf_len - buf_pointer, "-L%s", x->x_evt_out_filename);
-    if ((len < 0) || (argc >= CSD_MAX_ARGC)) {
+    /* line events */
+    if (csound_tilde_argv_write(&argv, "-L%s", x->x_evt_out_filename) < 0) {
         goto buffer_overflow_error;
     }
-    argv[argc++] = buf_pointer; buf_pointer += len+1;
 
+    /* sound I/O */
     if (x->x_outputflag) {
-        len = snprintf(buf_pointer, buf + buf_len - buf_pointer, "-i%s", x->x_snd_out_filename);
-        if ((len < 0) || (argc >= CSD_MAX_ARGC)) {
+        if (csound_tilde_argv_write(&argv, "-i%s", x->x_snd_out_filename) < 0) {
             goto buffer_overflow_error;
         }
-        argv[argc++] = buf_pointer; buf_pointer += len+1;
     }
 
-    len = snprintf(buf_pointer, buf + buf_len - buf_pointer, "-o%s", x->x_snd_in_filename);
-    if ((len < 0) || (argc >= CSD_MAX_ARGC)) {
+    if (csound_tilde_argv_write(&argv, "-o%s", x->x_snd_in_filename) < 0) {
         goto buffer_overflow_error;
     }
-    argv[argc++] = buf_pointer; buf_pointer += len+1;
 
     /* write orc and sco filenames */
-    len = snprintf(buf_pointer, buf + buf_len - buf_pointer, 
-                   "%s", x->x_csound_orc_filename->s_name);
-    if ((len < 0) || (argc >= CSD_MAX_ARGC)) {
-        goto buffer_overflow_error;
-    }
-    argv[argc++] = buf_pointer; buf_pointer += len+1;
-
-    len = snprintf(buf_pointer, buf + buf_len - buf_pointer,
-                   "%s", x->x_csound_sco_filename->s_name);
-    if ((len < 0) || (argc >= CSD_MAX_ARGC)) {
-        goto buffer_overflow_error;
-    }
-    argv[argc++] = buf_pointer; buf_pointer += len;
+    csound_tilde_argv_write_filename(&argv, x->x_canvas, x->x_csound_orc_filename->s_name);
+    csound_tilde_argv_write_filename(&argv, x->x_canvas, x->x_csound_sco_filename->s_name);
 
     /* terminate arguments */
-    argv[argc] = NULL;
+    exec_argv = csound_tilde_argv_end(&argv);
 
     /* fork csound process */
     if ((pid = fork()) < 0) {
@@ -359,12 +379,12 @@ csound_tilde_csound(t_csound_tilde *x, t_symbol *s, int ac, t_atom *av)
 #ifdef DEBUG
         {
             int i;
-            for (i = 0; i < argc; i++) {
-                post("DEBUG csound~ (csound): argv[%d] = %s", i, argv[i]);
+            for (i = 0; i < argv.x_argc; i++) {
+                post("DEBUG csound~ (csound): argv[%d] = %s", i, argv.x_argv[i]);
             }
         }
 #endif
-        if (execv(bin_filename, argv) < 0) {
+        if (execv(bin_filename, exec_argv) < 0) {
             error("csound~ (csound): execv(3) failed: %s", strerror(errno));
             _exit (EXIT_FAILURE);
         }
@@ -901,6 +921,8 @@ csound_tilde_new(t_floatarg fnchannels, t_floatarg foutputflag)
     }
 
     x->x_f                      = 0;
+
+    x->x_canvas                 = canvas_getcurrent();
 
     *x->x_evt_out_filename      = '\0';
     x->x_evt_out_fd             = -1;
