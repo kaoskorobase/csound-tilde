@@ -1,0 +1,72 @@
++++ csound~ ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+external for running csound processes in pd.
+
++++ files ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
++ ./README              - this file
+
++ ./src/csound~.c       - csound~ source
+  ./src/makefile        - linux makefile
+
++ ./help/csound~.pd     - csound~ help patch and accompanying csound orc/sco
+                          files
+  ./help/csound~.orc
+  ./help/csound~.sco
+
++ ./examples/*          - csound~ examples and accompanying csound orc/sco
+                          files
+
++++ known present features +++++++++++++++++++++++++++++++++++++++++++++++++
+
++ multichannel I/O with up to as many channels as csound supports
++ realtime score event messaging to the running csound process
++ multiple instances of csound runnable in one (many) pd patch(es)
+
++++ known absent features ++++++++++++++++++++++++++++++++++++++++++++++++++
+
++ unavailable on platforms other than linux
+
++++ known bugs +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
++ untested in (sub-)patches containing a block~ object with a block size
+  other than the system default (usually 64 sample frames)
++ no feedback on csound aborts + crashes
++ temporary files will not be deleted when pd exits due to a signal
+  interrupt
+
++++ installation +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
++ change to the csound_tilde source directory
++ edit the makefile to reflect your system installation (pd source and
++ installation directories)
++ "make"
++ "make install" (optional)
+
+  if you omit this step, you'll want to make sure that pd can find the
+  csound~.pd_linux shared object file (consult your pd documentation)
+
++++ usage ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+in pd,
+
++ right-click on a csound~ object and choose "help" (the csound~ help files
+  have to be installed in a common location, usually
+  $PD_LIB/doc/5.reference), or
++ send a "help" message to a csound~ object; a short overview will be
+  printed on stdout
+
++++ authors ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
++ orm finnendahl <finnendahl@folkwang-hochschule.de>
++ stefan kersten <steve@k-hornz.de>
+
++++ license ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
++ public domain
+
++++ misc advices +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
++ have fun
+
++++ EOF ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

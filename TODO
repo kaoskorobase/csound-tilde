@@ -1,0 +1,11 @@
++++ csound~: things to do ++++++++++++++++++++++++++++++++++++++++++++++++++
+
+o create pd helpfile(s)
+x integrate csound's soundin facility
+x implement "help" method
+x allocate inlets dynamically
+o use accurate block size argument to csound's -b flag
+o free all system resources when pd exits
+o react to SIGCHILD when csound exits
+
++++ EOF ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
