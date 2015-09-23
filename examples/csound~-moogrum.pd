@@ -1,0 +1,98 @@
+#N canvas 215 0 445 552 10;
+#X obj 32 516 dac~;
+#N canvas 118 0 778 687 seq 0;
+#X obj 31 38 qlist;
+#X obj 31 10 r seq1;
+#X obj 81 10 r start;
+#X obj 84 209 delay 500;
+#X obj 84 183 r start;
+#X obj 31 208 qlist;
+#X obj 31 183 r seq2;
+#X obj 31 420 qlist;
+#X obj 31 393 r seq3;
+#X obj 81 393 r start;
+#X msg 81 72 \; seq1 clear \; seq1 add voice1 1 50 238 0.98 \; seq1
+add 1000 voice1 1 50 145 0.12 \; seq1 add 500 voice1 1 50 127 0.96
+\; seq1 add 500 \; seq1 bang;
+#X msg 81 457 \; seq3 clear \; seq3 add voice3 0.3 10 5000 0.3 \; seq3
+add 250 voice3 0.4 15 5500 0.1 \; seq3 add 500 \; seq3 bang;
+#X obj 143 393 r stop;
+#X obj 144 10 r stop;
+#X obj 162 184 r stop;
+#X msg 162 209 \; seq2 clear;
+#X msg 144 35 \; seq1 clear;
+#X msg 143 419 \; seq3 clear;
+#X msg 84 250 \; seq2 clear \; seq2 add voice2 1 1000 70 0.99 \; seq2
+add 2000 voice2 1 1000 70 0.99 \; seq2 add 2000 voice2 1 1000 70 0.99
+\; seq2 add 2000 voice2 1 1000 70 0.99 \; seq2 add 2000 voice2 2 2000
+100 0.85 \; seq2 add 2000 \; seq2 bang;
+#X connect 0 1 10 0;
+#X connect 1 0 0 0;
+#X connect 2 0 10 0;
+#X connect 3 0 18 0;
+#X connect 4 0 3 0;
+#X connect 5 1 18 0;
+#X connect 6 0 5 0;
+#X connect 7 1 11 0;
+#X connect 8 0 7 0;
+#X connect 9 0 11 0;
+#X connect 12 0 17 0;
+#X connect 13 0 16 0;
+#X connect 14 0 15 0;
+#X restore 60 479 pd seq;
+#N canvas 75 313 600 342 moogrum 0;
+#X obj 40 221 +~;
+#X obj 40 193 +~;
+#X obj 40 93 csound~-moogrum-voice voice1;
+#X obj 82 114 csound~-moogrum-voice voice2;
+#X obj 120 136 csound~-moogrum-voice voice3;
+#X obj 56 26 inlet;
+#X obj 97 26 inlet;
+#X obj 137 26 inlet;
+#X obj 40 250 outlet~;
+#X obj 40 164 *~;
+#X obj 82 164 *~;
+#X obj 120 163 *~;
+#X connect 0 0 8 0;
+#X connect 1 0 0 0;
+#X connect 2 0 9 0;
+#X connect 3 0 10 0;
+#X connect 4 0 11 0;
+#X connect 5 0 9 1;
+#X connect 6 0 10 1;
+#X connect 7 0 11 1;
+#X connect 9 0 1 0;
+#X connect 10 0 1 1;
+#X connect 11 0 0 1;
+#X restore 32 456 pd moogrum;
+#X obj 32 318 vslider 15 128 0 1 0 0 empty mixer1 empty 20 8 0 8 -262144
+-1 -1 8890 1;
+#X obj 64 317 vslider 15 128 0 1 0 0 empty mixer2 empty 20 8 0 8 -262144
+-1 -1 12700 1;
+#X obj 97 317 vslider 15 128 0 1 0 0 empty mixer3 empty 20 8 0 8 -262144
+-1 -1 381 1;
+#X msg 137 315 \; start bang;
+#X msg 173 158 \; pd dsp 0 \; voice1-stop bang \; voice2-stop bang
+\; voice3-stop bang;
+#X obj 27 132 loadbang;
+#X msg 27 159 \; mixer1 0.7 \; mixer2 1 \; mixer3 0.03 \; voice1-start
+bang \; voice2-start bang \; voice3-start bang \; pd dsp 1;
+#X msg 137 356 \; stop bang;
+#X text 29 22 each of which contains a simple self-oscillating filter
+;
+#X text 29 40 with mono input and output.;
+#X text 30 6 this little gizmo uses three instances of csound~ \,;
+#X text 49 295 volumes;
+#X text 167 139 +++ panic button +++;
+#X text 26 78 csound~-moogrum-voice in the moogrum subpatch and is
+;
+#X text 25 94 fed an enveloped white noise signal.;
+#X text 27 63 each filter is loaded from the abstraction;
+#X text 228 320 << start the sequence;
+#X text 230 363 << stop the sequence;
+#X connect 2 0 0 0;
+#X connect 2 0 0 1;
+#X connect 3 0 2 0;
+#X connect 4 0 2 1;
+#X connect 5 0 2 2;
+#X connect 8 0 9 0;

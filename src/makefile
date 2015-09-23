@@ -1,22 +1,28 @@
+# +++ csound~ makefile +++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# pd source directory:
 PD_SRC		= /home/steve/src/pd-0.34-2
+
+# pd installation directory:
 PD_LIB		= /usr/local/lib/pd
 
+# misc programs + flags:
 CC		= gcc
 LD		= ld
 DEBUG		= # -g -DDEBUG
 INCLUDE		= -I$(PD_SRC)
 SHARED		= -export_dynamic -shared
 LDFLAGS		= $(SHARED) -lm
-CFLAGS		+= -DPD -O3 -funroll-loops -fomit-frame-pointer \
+CFLAGS		+= -DPD -O2 -funroll-loops -fomit-frame-pointer \
 		   -Wall -W -Wshadow -Wstrict-prototypes -Werror \
 		   -Wno-unused -Wno-parentheses -Wno-switch \
 		   $(INCLUDE) $(DEBUG)
 
-# -------------------- DO NOT EDIT BELOW --------------------
+# +++ few to edit below ++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-TARGET		= csound~.pd_linux
+TARGET		= csound~
 
-all: $(TARGET)
+all: $(TARGET).pd_linux
 
 .SUFFIXES: .pd_linux
 
@@ -29,9 +35,8 @@ install: installdocs
 	install -m 644 $(TARGET).pd_linux $(PD_LIB)/externs
 
 installdocs:
-	install -d $(PD_LIB)/doc/5.reference/zexy
-	install -m644 ../examples/* $(PD_DIR)/doc/5.reference/zexy
+	install -m 644 ../help/$(TARGET)* $(PD_LIB)/doc/5.reference
 
-clean: rm -f *.pd_linux *.o
+clean: ; rm -f *.pd_linux *.o
 
-# EOF
+# +++ EOF ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

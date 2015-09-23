@@ -6,7 +6,7 @@
    license:     public domain
                 ( c ) 2002 finnendahl, kersten
    +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-   $Id: csound~.c,v 1.1 2002/02/18 22:58:31 steve Exp steve $
+   $Id: csound~.c,v 1.2 2002/02/19 16:15:45 steve Exp steve $
    +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
 #include "m_pd.h"
@@ -19,6 +19,7 @@
 #include <signal.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -644,16 +645,36 @@ csound_tilde_read_from_csound(t_csound_tilde *x, char *buf, int size)
     int bytes_missing;
     int res = 0;
 
-    if ((bytes_read = read(x->x_snd_in_fd, (void *)buf, size)) < 0) {
+    fd_set rfds;
+    struct timeval tv;
+
+    FD_ZERO(&rfds);
+    FD_SET(x->x_snd_in_fd, &rfds);
+    tv.tv_sec   = 1;
+    tv.tv_usec  = 0;
+
+    res = select(1, &rfds, NULL, NULL, &tv);
+
+    if (res > 0) {
+        if ((bytes_read = read(x->x_snd_in_fd, (void *)buf, size)) < 0) {
 #ifdef DEBUG
-        if (errno == EAGAIN) {
-            post("DEBUG csound~: sound input fifo underrun");
-        } else {
-            post("DEBUG csound~: sound input fifo error: %s", strerror(errno));
-        }
+            if (errno == EAGAIN) {
+                post("DEBUG csound~: sound input fifo underrun");
+            } else {
+                post("DEBUG csound~: sound input fifo error: %s", strerror(errno));
+            }
 #endif /* DEBUG */
+            bytes_read = 0;
+            res = -1;
+        }
+    } else if (res == 0) {
         bytes_read = 0;
         res = -1;
+        post("csound~: timeout!");
+    } else {
+        bytes_read = 0;
+        res = -1;
+        post("csound~: select(2) error: %s", strerror(errno));
     }
 
     /* zero out the part of the buffer we failed to read from csound.
